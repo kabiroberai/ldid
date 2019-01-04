@@ -1,4 +1,5 @@
-DESTDIR ?= /usr/local
+DESTDIR ?= 
+PREFIX  ?= /usr
 
 .PHONY: all clean
 LDID_OBJS = ldid.cpp.o lookup2.c.o
@@ -25,5 +26,5 @@ clean:
 	rm -f $(LDID_OBJS) ldid ldid2 ldid3
 
 install: all
-	mkdir -p $(DESTDIR)/bin
-	cp ldid ldid2 ldid3 $(DESTDIR)/bin
+	mkdir -p $(DESTDIR)/$(PREFIX)/bin
+	cp ldid ldid2 ldid3 $(DESTDIR)/$(PREFIX)/bin
