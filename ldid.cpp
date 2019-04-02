@@ -2513,24 +2513,12 @@ int main(int argc, char *argv[]) {
     std::vector<std::string> files;
 
     if (argc == 1) {
-        fprintf(stderr, "usage: %s [-Hsha1] [-Hsha256] -S[entitlements.xml] <binary>\n", argv[0]);
+        fprintf(stderr, "usage: %s -S[entitlements.xml] <binary>\n", argv[0]);
         fprintf(stderr, "   %s -e MobileSafari\n", argv[0]);
         fprintf(stderr, "   %s -S cat\n", argv[0]);
         fprintf(stderr, "   %s -Stfp.xml gdb\n", argv[0]);
         exit(0);
     }
-
-    // Support setting default based on the ldid binary's name
-    if (strstr(argv[0], "ldid1")) {
-        do_sha1 = true;
-        do_sha2 = false;
-    } else if (strstr(argv[0], "ldid2")) {
-        do_sha1 = false;
-        do_sha2 = true;
-    } else if (strstr(argv[0], "ldid3")) {
-        do_sha1 = do_sha2 = true;
-    }
-
 
     for (int argi(1); argi != argc; ++argi)
         if (argv[argi][0] != '-')
@@ -2605,6 +2593,7 @@ int main(int argc, char *argv[]) {
             break;
 
             case 'H':
+                fprintf(stderr, "-H is deprecated but doing as requested\n");
 	    	if (!flag_H) {
 		    do_sha1 = do_sha2 = false;
 		}
