@@ -9,6 +9,39 @@
 #include <string>
 #include <vector>
 
+#ifndef LDID_NOTOOLS
+class File {
+  private:
+    int file_;
+
+  public:
+    File();
+    ~File();
+    void open(const char *path, int flags);
+    int file() const;
+};
+
+class Map {
+  private:
+    File file_;
+    void *data_;
+    size_t size_;
+    void clear();
+
+  public:
+    Map();
+    Map(const std::string &path, int oflag, int pflag, int mflag);
+    Map(const std::string &path, bool edit);
+    ~Map();
+    bool empty() const;
+    void open(const std::string &path, int oflag, int pflag, int mflag);
+    void open(const std::string &path, bool edit);
+    void *data() const;
+    size_t size() const;
+    operator std::string() const;
+};
+#endif
+
 namespace ldid {
 
 // I wish Apple cared about providing quality toolchains :/
@@ -147,6 +180,10 @@ struct Bundle {
     std::string path;
     Hash hash;
 };
+
+std::string Analyze(const void *data, size_t size);
+
+void BundleInfo(Folder &folder, std::string &info, bool &mac, std::string &executable, std::string &identifier);
 
 Bundle Sign(const std::string &root, Folder &folder, const std::string &key, const std::string &requirement, const Functor<std::string (const std::string &, const std::string &)> &alter, const Functor<void (const std::string &)> &progress, const Functor<void (double)> &percent);
 

@@ -989,104 +989,90 @@ struct CodesignAllocation {
 };
 
 #ifndef LDID_NOTOOLS
-class File {
-  private:
-    int file_;
+File::File() :
+    file_(-1)
+{
+}
 
-  public:
-    File() :
-        file_(-1)
-    {
-    }
+File::~File() {
+    if (file_ != -1)
+        _syscall(close(file_));
+}
 
-    ~File() {
-        if (file_ != -1)
-            _syscall(close(file_));
-    }
+void File::open(const char *path, int flags) {
+    _assert(file_ == -1);
+    file_ = _syscall(::open(path, flags));
+}
 
-    void open(const char *path, int flags) {
-        _assert(file_ == -1);
-        file_ = _syscall(::open(path, flags));
-    }
+int File::file() const {
+    return file_;
+}
 
-    int file() const {
-        return file_;
-    }
-};
+void Map::clear() {
+    if (data_ == NULL)
+        return;
+    _syscall(munmap(data_, size_));
+    data_ = NULL;
+    size_ = 0;
+}
 
-class Map {
-  private:
-    File file_;
-    void *data_;
-    size_t size_;
+Map::Map() :
+    data_(NULL),
+    size_(0)
+{
+}
 
-    void clear() {
-        if (data_ == NULL)
-            return;
-        _syscall(munmap(data_, size_));
-        data_ = NULL;
-        size_ = 0;
-    }
+Map::Map(const std::string &path, int oflag, int pflag, int mflag) :
+    Map()
+{
+    open(path, oflag, pflag, mflag);
+}
 
-  public:
-    Map() :
-        data_(NULL),
-        size_(0)
-    {
-    }
+Map::Map(const std::string &path, bool edit) :
+    Map()
+{
+    open(path, edit);
+}
 
-    Map(const std::string &path, int oflag, int pflag, int mflag) :
-        Map()
-    {
-        open(path, oflag, pflag, mflag);
-    }
+Map::~Map() {
+    clear();
+}
 
-    Map(const std::string &path, bool edit) :
-        Map()
-    {
-        open(path, edit);
-    }
+bool Map::empty() const {
+    return data_ == NULL;
+}
 
-    ~Map() {
-        clear();
-    }
+void Map::open(const std::string &path, int oflag, int pflag, int mflag) {
+    clear();
 
-    bool empty() const {
-        return data_ == NULL;
-    }
+    file_.open(path.c_str(), oflag);
+    int file(file_.file());
 
-    void open(const std::string &path, int oflag, int pflag, int mflag) {
-        clear();
+    struct stat stat;
+    _syscall(fstat(file, &stat));
+    size_ = stat.st_size;
 
-        file_.open(path.c_str(), oflag);
-        int file(file_.file());
+    data_ = _syscall(mmap(NULL, size_, pflag, mflag, file, 0));
+}
 
-        struct stat stat;
-        _syscall(fstat(file, &stat));
-        size_ = stat.st_size;
+void Map::open(const std::string &path, bool edit) {
+    if (edit)
+        open(path, O_RDWR, PROT_READ | PROT_WRITE, MAP_SHARED);
+    else
+        open(path, O_RDONLY, PROT_READ, MAP_PRIVATE);
+}
 
-        data_ = _syscall(mmap(NULL, size_, pflag, mflag, file, 0));
-    }
+void *Map::data() const {
+    return data_;
+}
 
-    void open(const std::string &path, bool edit) {
-        if (edit)
-            open(path, O_RDWR, PROT_READ | PROT_WRITE, MAP_SHARED);
-        else
-            open(path, O_RDONLY, PROT_READ, MAP_PRIVATE);
-    }
+size_t Map::size() const {
+    return size_;
+}
 
-    void *data() const {
-        return data_;
-    }
-
-    size_t size() const {
-        return size_;
-    }
-
-    operator std::string() const {
-        return std::string(static_cast<char *>(data_), size_);
-    }
-};
+Map::operator std::string() const {
+    return std::string(static_cast<char *>(data_), size_);
+}
 #endif
 
 namespace ldid {
@@ -2173,13 +2159,10 @@ static Hash Sign(const uint8_t *prefix, size_t size, std::streambuf &buffer, Has
     return Sign(data.data(), data.size(), proxy, identifier, entitlements, requirement, key, slots, percent);
 }
 
-Bundle Sign(const std::string &root, Folder &folder, const std::string &key, std::map<std::string, Hash> &remote, const std::string &requirement, const Functor<std::string (const std::string &, const std::string &)> &alter, const Functor<void (const std::string &)> &progress, const Functor<void (double)> &percent) {
-    std::string executable;
-    std::string identifier;
+void BundleInfo(Folder &folder, std::string &info, bool &mac, std::string &executable, std::string &identifier) {
+    mac = false;
 
-    bool mac(false);
-
-    std::string info("Info.plist");
+    info = "Info.plist";
     if (!folder.Look(info) && folder.Look("Resources/" + info)) {
         mac = true;
         info = "Resources/" + info;
@@ -2196,6 +2179,15 @@ Bundle Sign(const std::string &root, Folder &folder, const std::string &key, std
         executable = "MacOS/" + executable;
         mac = true;
     }
+}
+
+Bundle Sign(const std::string &root, Folder &folder, const std::string &key, std::map<std::string, Hash> &remote, const std::string &requirement, const Functor<std::string (const std::string &, const std::string &)> &alter, const Functor<void (const std::string &)> &progress, const Functor<void (double)> &percent) {
+    std::string executable;
+    std::string identifier;
+    bool mac;
+    std::string info;
+
+    BundleInfo(folder, info, mac, executable, identifier);
 
     std::string entitlements;
     folder.Open(executable, fun([&](std::streambuf &buffer, size_t length, const void *flag) {
@@ -2463,6 +2455,7 @@ Bundle Sign(const std::string &root, Folder &folder, const std::string &key, con
 }
 
 #ifndef LDID_NOTOOLS
+#ifndef LDID_NOMAIN
 int main(int argc, char *argv[]) {
 #ifndef LDID_NOSMIME
     OpenSSL_add_all_algorithms();
@@ -2813,4 +2806,5 @@ int main(int argc, char *argv[]) {
 
     return filee;
 }
+#endif
 #endif
