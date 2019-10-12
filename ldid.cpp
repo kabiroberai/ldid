@@ -45,7 +45,7 @@
 #ifndef LDID_NOSMIME
 #include <openssl/err.h>
 #include <openssl/pem.h>
-#include <openssl/pkcs7.h>
+#include <openssl/cms.h>
 #include <openssl/pkcs12.h>
 #endif
 
@@ -1374,10 +1374,10 @@ class Buffer {
     {
     }
 
-    Buffer(PKCS7 *pkcs) :
+    Buffer(CMS_ContentInfo *cms) :
         Buffer()
     {
-        _assert(i2d_PKCS7_bio(bio_, pkcs) != 0);
+        _assert(i2d_CMS_bio(bio_, cms) != 0);
     }
 
     ~Buffer() {
@@ -1444,20 +1444,33 @@ class Stuff {
 
 class Signature {
   private:
-    PKCS7 *value_;
+    CMS_ContentInfo *value_;
 
   public:
-    Signature(const Stuff &stuff, const Buffer &data) :
-        value_(PKCS7_sign(stuff, stuff, stuff, data, PKCS7_BINARY | PKCS7_DETACHED))
+    Signature(const Stuff &stuff, const Buffer &data)
     {
+        int flags = CMS_PARTIAL | CMS_DETACHED | CMS_NOSMIMECAP | CMS_BINARY;
+
+        CMS_ContentInfo *stream = CMS_sign(NULL, NULL, stuff, NULL, flags);
+
+        // Setup SHA1 and SHA256 signing digests.
+        // By default, SHA1 is used by CMS_sign. In iOS 12, CoreTrust requires both
+        // the SHA1 and SHA256 digest.
+        CMS_add1_signer(stream, stuff, stuff, EVP_sha256(), flags);
+        CMS_add1_signer(stream, stuff, stuff, EVP_sha1(), flags);
+
+        CMS_final(stream, data, NULL, flags);
+
+        value_ = stream;
+
         _assert(value_ != NULL);
     }
 
     ~Signature() {
-        PKCS7_free(value_);
+        CMS_ContentInfo_free(value_);
     }
 
-    operator PKCS7 *() const {
+    operator CMS_ContentInfo *() const {
         return value_;
     }
 };
